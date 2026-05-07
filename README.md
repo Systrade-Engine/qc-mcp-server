@@ -1,3 +1,6 @@
+# This repository is deprecated for now - the preferred way to use our MCP is through the one embedded in VSCode.
+# See https://www.quantconnect.com/docs/v2/ai-assistance/mcp-server/key-concepts
+
 
 <img width="1575" height="280" alt="github-header" src="https://github.com/user-attachments/assets/6cec1ef7-0340-416e-ab81-c73fbc8ff847" />
 
