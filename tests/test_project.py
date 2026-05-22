@@ -1,4 +1,5 @@
 import pytest
+from json import loads
 
 from main import mcp
 from utils import (
@@ -31,10 +32,12 @@ class Project:
 
     @staticmethod
     async def read(**kwargs):
-        output_model = await validate_models(
-            mcp, 'read_project', kwargs, ProjectListResponse
+        unstructured_response, _ = await mcp.call_tool(
+            'read_project', {'model': kwargs}
         )
-        return output_model.projects
+        response = loads(unstructured_response[0].text)
+        assert response.get('success', True)
+        return response['projects']
 
     @staticmethod
     async def update(id_, **kwargs):
@@ -50,10 +53,10 @@ class Project:
 
     @staticmethod
     async def list():
-        output_model = await validate_models(
-            mcp, 'list_projects', output_class=ProjectListResponse
-        )
-        return output_model.projects
+        unstructured_response, _ = await mcp.call_tool('list_projects', {})
+        response = loads(unstructured_response[0].text)
+        assert response.get('success', True)
+        return response['projects']
 
 
 # Test suite:
@@ -93,8 +96,8 @@ class TestProject:
         # Read the project.
         project = (await Project.read(projectId=id_))[0]
         # Test if the name and language are correct.
-        assert project.name == name
-        assert project.language.value == language
+        assert project['name'] == name
+        assert project['language'] == language
         # Delete the project to clean up.
         await Project.delete(id_)
         # Test if we can read multiple projects.
@@ -132,14 +135,14 @@ class TestProject:
         await Project.update(id_, name=new_name)
         # Test if the new name is correct.
         project = (await Project.read(projectId=id_))[0]
-        assert project.name == new_name
+        assert project['name'] == new_name
         
         # Update the project description.
         new_description = f"Description {create_timestamp()}"
         await Project.update(id_, description=new_description)
         # Test if the new description is correct.
         project = (await Project.read(projectId=id_))[0]
-        assert project.description == new_description
+        assert project['description'] == new_description
         
         # Update the project name and description.
         new_name = f"Project {create_timestamp()}"
@@ -149,8 +152,8 @@ class TestProject:
         )
         # Test if the new name & description are correct.
         project = (await Project.read(projectId=id_))[0]
-        assert project.name == new_name
-        assert project.description == new_description
+        assert project['name'] == new_name
+        assert project['description'] == new_description
 
         # Delete the project to clean up.
         await Project.delete(id_)

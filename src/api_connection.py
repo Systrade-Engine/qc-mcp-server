@@ -49,3 +49,16 @@ async def post(endpoint: str, model: object = None, timeout: float = 30.0):
         )
         response.raise_for_status()
         return response.json()
+
+
+async def post_text(endpoint: str, model: object = None, timeout: float = 30.0):
+    """Make an HTTP POST request and return the raw response body as text."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f'{BASE_URL}{endpoint}',
+            headers=get_headers(),
+            json=to_jsonable_python(model, exclude_none=True) if model else {},
+            timeout=timeout
+        )
+        response.raise_for_status()
+        return response.text

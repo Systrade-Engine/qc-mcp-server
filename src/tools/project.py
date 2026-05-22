@@ -1,4 +1,4 @@
-from api_connection import post
+from api_connection import post, post_text
 from models import (
     CreateProjectRequest, 
     ReadProjectRequest, 
@@ -23,15 +23,15 @@ def register_project_tools(mcp):
 
     # Read (singular)
     @mcp.tool(annotations={'title': 'Read project', 'readOnlyHint': True})
-    async def read_project(model: ReadProjectRequest) -> ProjectListResponse:
+    async def read_project(model: ReadProjectRequest) -> str:
         """List the details of a project or a set of recent projects."""
-        return await post('/projects/read', model)
+        return await post_text('/projects/read', model)
     
     # Read (all)
     @mcp.tool(annotations={'title': 'List projects', 'readOnlyHint': True})
-    async def list_projects() -> ProjectListResponse:
+    async def list_projects() -> str:
         """List the details of all projects."""
-        return await post('/projects/read')
+        return await post_text('/projects/read')
 
     # Update
     @mcp.tool(annotations={'title': 'Update project', 'idempotentHint': True})
