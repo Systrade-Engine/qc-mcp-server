@@ -1,6 +1,7 @@
 const express = require("express");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const { spawn } = require("child_process");
+const { createOpenApiSpec, createSwaggerHtml } = require("./openapi");
 
 const externalPort = Number(process.env.PORT || 8000);
 const internalPort = Number(process.env.INTERNAL_GATEWAY_PORT || 9000);
@@ -54,6 +55,15 @@ gateway.on("exit", (code, signal) => {
 });
 
 const app = express();
+app.set("trust proxy", true);
+
+function getBaseUrl(req) {
+  return process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+}
+
+app.get("/", (_req, res) => {
+  res.redirect(302, "/docs");
+});
 
 app.get("/health", (_req, res) => {
   res.json({
@@ -62,6 +72,14 @@ app.get("/health", (_req, res) => {
     mode: "shared-session-ready",
     active_sessions: sessions.size,
   });
+});
+
+app.get("/openapi.json", (req, res) => {
+  res.json(createOpenApiSpec(getBaseUrl(req)));
+});
+
+app.get(["/docs", "/docs/"], (_req, res) => {
+  res.type("html").send(createSwaggerHtml());
 });
 
 app.post(
