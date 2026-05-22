@@ -1,23 +1,23 @@
-# Use a slim Python base image
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install uv
+RUN apt-get update && apt-get install -y \
+    curl \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install uv
 
-# Copy dependency files
-COPY pyproject.toml .
+COPY package.json /app/package.json
+RUN npm install
 
-# Generate uv.lock during the build
-RUN uv lock
+COPY . /app
 
-# Install dependencies with uv
-RUN uv sync --frozen
+RUN uv sync
 
-# Copy source code
-COPY src/ src/
+ENV AGENT_NAME=NeuroAlpha
+ENV INTERNAL_GATEWAY_PORT=9000
 
-# Run the server
-CMD ["uv", "run", "src/main.py"]
+CMD ["node", "server.js"]

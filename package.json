@@ -1,0 +1,11 @@
+{
+  "name": "systrade-qc-mcp-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^4.19.2",
+    "http-proxy-middleware": "^3.0.3",
+    "supergateway": "^3.4.0"
+  }
+}
