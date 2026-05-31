@@ -6,6 +6,7 @@ const { createOpenApiSpec, createSwaggerHtml } = require("./openapi");
 const externalPort = Number(process.env.PORT || 8000);
 const internalPort = Number(process.env.INTERNAL_GATEWAY_PORT || 9000);
 const token = process.env.MCP_INTERNAL_TOKEN;
+const defaultSessionId = process.env.DEFAULT_SESSION_ID || "systradeapp-shared";
 const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
 
 if (!token) {
@@ -14,6 +15,28 @@ if (!token) {
 }
 
 const sessions = new Map();
+
+function createSharedSession({ sessionId, userId, workflowRunId, bootstrap }) {
+  const now = Date.now();
+
+  sessions.set(sessionId, {
+    sessionId,
+    userId,
+    workflowRunId,
+    bootstrap,
+    createdAt: now,
+    lastUsedAt: now,
+  });
+}
+
+function bootstrapDefaultSession() {
+  createSharedSession({
+    sessionId: defaultSessionId,
+    userId: "shared",
+    workflowRunId: "shared-bootstrap",
+    bootstrap: true,
+  });
+}
 
 function requireInternalAuth(req, res, next) {
   const expected = `Bearer ${token}`;
@@ -28,8 +51,11 @@ function requireInternalAuth(req, res, next) {
   next();
 }
 
+bootstrapDefaultSession();
+
 console.log("Starting shared supergateway...");
 console.log(`Internal gateway port: ${internalPort}`);
+console.log(`Default shared session: ${defaultSessionId}`);
 
 const gateway = spawn(
   npxCommand,
@@ -71,6 +97,7 @@ app.get("/health", (_req, res) => {
     service: "systrade-qc-mcp-gateway",
     mode: "shared-session-ready",
     active_sessions: sessions.size,
+    default_session_id: defaultSessionId,
   });
 });
 
@@ -91,8 +118,6 @@ app.post(
       session_id,
       user_id,
       workflow_run_id,
-      qc_user_id,
-      qc_api_token,
     } = req.body || {};
 
     if (!session_id) {
@@ -107,23 +132,11 @@ app.post(
       return res.status(422).json({ error: "workflow_run_id is required" });
     }
 
-    if (!qc_user_id) {
-      return res.status(422).json({ error: "qc_user_id is required" });
-    }
-
-    if (!qc_api_token) {
-      return res.status(422).json({ error: "qc_api_token is required" });
-    }
-
-    sessions.set(session_id, {
+    createSharedSession({
       sessionId: session_id,
       userId: user_id,
       workflowRunId: workflow_run_id,
-      qcUserId: qc_user_id,
-      // Stored only for the future per-session mode. Never log this value.
-      qcApiToken: qc_api_token,
-      createdAt: Date.now(),
-      lastUsedAt: Date.now(),
+      bootstrap: false,
     });
 
     res.json({

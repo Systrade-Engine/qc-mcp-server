@@ -1,3 +1,5 @@
+const DEFAULT_SESSION_ID = process.env.DEFAULT_SESSION_ID || "systradeapp-shared";
+
 function createOpenApiSpec(baseUrl) {
   return {
     openapi: "3.1.0",
@@ -46,7 +48,8 @@ function createOpenApiSpec(baseUrl) {
                         status: "ok",
                         service: "systrade-qc-mcp-gateway",
                         mode: "shared-session-ready",
-                        active_sessions: 0,
+                        active_sessions: 1,
+                        default_session_id: DEFAULT_SESSION_ID,
                       },
                     },
                   },
@@ -76,11 +79,9 @@ function createOpenApiSpec(baseUrl) {
                 examples: {
                   local: {
                     value: {
-                      session_id: "render-session-1",
+                      session_id: "custom-shared-session-1",
                       user_id: "render-user-1",
                       workflow_run_id: "render-workflow-1",
-                      qc_user_id: "12345",
-                      qc_api_token: "qc-api-token",
                     },
                   },
                 },
@@ -125,7 +126,7 @@ function createOpenApiSpec(baseUrl) {
               schema: {
                 type: "string",
               },
-              example: "render-session-1",
+              example: DEFAULT_SESSION_ID,
             },
           ],
           responses: {
@@ -163,7 +164,7 @@ function createOpenApiSpec(baseUrl) {
               schema: {
                 type: "string",
               },
-              example: "render-session-1",
+              example: DEFAULT_SESSION_ID,
             },
             {
               name: "Accept",
@@ -252,7 +253,7 @@ function createOpenApiSpec(baseUrl) {
                     missingSession: {
                       value: {
                         error: "MCP session not found",
-                        session_id: "render-session-1",
+                        session_id: "unknown-session",
                       },
                     },
                   },
@@ -310,7 +311,13 @@ function createOpenApiSpec(baseUrl) {
       schemas: {
         HealthResponse: {
           type: "object",
-          required: ["status", "service", "mode", "active_sessions"],
+          required: [
+            "status",
+            "service",
+            "mode",
+            "active_sessions",
+            "default_session_id",
+          ],
           properties: {
             status: {
               type: "string",
@@ -327,23 +334,23 @@ function createOpenApiSpec(baseUrl) {
             active_sessions: {
               type: "integer",
               minimum: 0,
-              example: 0,
+              example: 1,
+            },
+            default_session_id: {
+              type: "string",
+              description:
+                "Auto-bootstrapped shared session id available immediately after service start.",
+              example: DEFAULT_SESSION_ID,
             },
           },
         },
         CreateSessionRequest: {
           type: "object",
-          required: [
-            "session_id",
-            "user_id",
-            "workflow_run_id",
-            "qc_user_id",
-            "qc_api_token",
-          ],
+          required: ["session_id", "user_id", "workflow_run_id"],
           properties: {
             session_id: {
               type: "string",
-              example: "render-session-1",
+              example: "custom-shared-session-1",
             },
             user_id: {
               type: "string",
@@ -352,15 +359,6 @@ function createOpenApiSpec(baseUrl) {
             workflow_run_id: {
               type: "string",
               example: "render-workflow-1",
-            },
-            qc_user_id: {
-              type: "string",
-              example: "12345",
-            },
-            qc_api_token: {
-              type: "string",
-              format: "password",
-              example: "qc-api-token",
             },
           },
         },
@@ -374,7 +372,7 @@ function createOpenApiSpec(baseUrl) {
             },
             session_id: {
               type: "string",
-              example: "render-session-1",
+              example: "custom-shared-session-1",
             },
             mode: {
               type: "string",
@@ -392,7 +390,7 @@ function createOpenApiSpec(baseUrl) {
             },
             session_id: {
               type: "string",
-              example: "render-session-1",
+              example: DEFAULT_SESSION_ID,
             },
           },
         },
