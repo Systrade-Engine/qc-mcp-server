@@ -21,6 +21,15 @@ const sessionCleanupIntervalMs = readPositiveIntegerEnv(
   "SESSION_CLEANUP_INTERVAL_MS",
   5 * 60 * 1000
 );
+const proxyTimeoutMs = readPositiveIntegerEnv("PROXY_TIMEOUT_MS", 10 * 60 * 1000);
+const gatewayRestartBaseDelayMs = readPositiveIntegerEnv(
+  "GATEWAY_RESTART_BASE_DELAY_MS",
+  1000
+);
+const gatewayRestartMaxDelayMs = readPositiveIntegerEnv(
+  "GATEWAY_RESTART_MAX_DELAY_MS",
+  30000
+);
 
 if (!token) {
   console.error("MCP_INTERNAL_TOKEN is required");
@@ -150,32 +159,101 @@ console.log(`Internal gateway port: ${internalPort}`);
 console.log(`Default shared session: ${defaultSessionId}`);
 console.log(`Session limit: ${maxSessions}; TTL: ${sessionTtlMs}ms`);
 console.log(`MCP transport session timeout: ${mcpSessionTimeoutMs}ms`);
+console.log(`Proxy timeout: ${proxyTimeoutMs}ms`);
 
-const gateway = spawn(
-  npxCommand,
-  [
-    "supergateway",
-    "--stdio",
-    "uv run src/main.py",
-    "--outputTransport",
-    "streamableHttp",
-    "--stateful",
-    "--sessionTimeout",
-    String(mcpSessionTimeoutMs),
-    "--port",
-    String(internalPort),
-  ],
-  {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: "inherit",
-  }
-);
+let gateway = null;
+let gatewayRestartAttempt = 0;
+let gatewayRestartTimer = null;
+let gatewayStableTimer = null;
+let shuttingDown = false;
 
-gateway.on("exit", (code, signal) => {
-  console.error(`supergateway exited. code=${code}, signal=${signal}`);
-  process.exit(code || 1);
-});
+function startGateway() {
+  const child = spawn(
+    npxCommand,
+    [
+      "supergateway",
+      "--stdio",
+      "uv run src/main.py",
+      "--outputTransport",
+      "streamableHttp",
+      "--stateful",
+      "--sessionTimeout",
+      String(mcpSessionTimeoutMs),
+      "--port",
+      String(internalPort),
+    ],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: "inherit",
+    }
+  );
+  gateway = child;
+
+  console.log(`supergateway started. pid=${child.pid}`);
+
+  clearTimeout(gatewayStableTimer);
+  gatewayStableTimer = setTimeout(() => {
+    gatewayRestartAttempt = 0;
+  }, 30000);
+  gatewayStableTimer.unref();
+
+  child.on("exit", (code, signal) => {
+    console.error(`supergateway exited. code=${code}, signal=${signal}`);
+    clearTimeout(gatewayStableTimer);
+
+    if (gateway === child) {
+      gateway = null;
+    }
+
+    if (shuttingDown) {
+      return;
+    }
+
+    if (!gatewayRestartTimer) {
+      scheduleGatewayRestart();
+    }
+  });
+
+  child.on("error", (error) => {
+    console.error(`supergateway failed to start: ${error.message}`);
+    clearTimeout(gatewayStableTimer);
+
+    if (gateway === child) {
+      gateway = null;
+    }
+
+    if (shuttingDown) {
+      return;
+    }
+
+    if (!gatewayRestartTimer) {
+      scheduleGatewayRestart();
+    }
+  });
+}
+
+function scheduleGatewayRestart() {
+  gatewayRestartAttempt += 1;
+
+  const delay = Math.min(
+    gatewayRestartBaseDelayMs * 2 ** (gatewayRestartAttempt - 1),
+    gatewayRestartMaxDelayMs
+  );
+
+  console.warn(
+    `Restarting supergateway in ${delay}ms (attempt ${gatewayRestartAttempt})`
+  );
+
+  gatewayRestartTimer = setTimeout(() => {
+    gatewayRestartTimer = null;
+    startGateway();
+  }, delay);
+
+  gatewayRestartTimer.unref();
+}
+
+startGateway();
 
 const app = express();
 app.set("trust proxy", true);
@@ -213,8 +291,11 @@ app.get("/health", (_req, res) => {
     max_sessions: maxSessions,
     session_ttl_ms: sessionTtlMs,
     mcp_session_timeout_ms: mcpSessionTimeoutMs,
+    proxy_timeout_ms: proxyTimeoutMs,
     default_session_id: defaultSessionId,
-    gateway_pid: gateway.pid,
+    gateway_pid: gateway?.pid || null,
+    gateway_running: Boolean(gateway),
+    gateway_restart_attempt: gatewayRestartAttempt,
     node_memory: getNodeMemoryUsage(),
   });
 });
@@ -301,25 +382,55 @@ app.use(
 
     next();
   },
+  (_req, res, next) => {
+    if (!gateway) {
+      return res.status(503).json({
+        error: "MCP gateway is restarting",
+      });
+    }
+
+    next();
+  },
   createProxyMiddleware({
     target: `http://127.0.0.1:${internalPort}`,
     changeOrigin: true,
     ws: true,
-    proxyTimeout: 120000,
-    timeout: 120000,
+    proxyTimeout: proxyTimeoutMs,
+    timeout: proxyTimeoutMs,
     pathRewrite: () => "/mcp",
+    on: {
+      error(error, _req, res) {
+        console.error(`MCP proxy error: ${error.message}`);
+
+        if (!res) {
+          return;
+        }
+
+        if (!res.headersSent) {
+          res.writeHead(502, { "Content-Type": "application/json" });
+        }
+
+        res.end(JSON.stringify({ error: "MCP gateway proxy error" }));
+      },
+    },
   })
 );
 
 process.on("SIGTERM", () => {
   console.log("Received SIGTERM. Stopping supergateway...");
-  gateway.kill("SIGTERM");
+  shuttingDown = true;
+  clearTimeout(gatewayRestartTimer);
+  clearTimeout(gatewayStableTimer);
+  gateway?.kill("SIGTERM");
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
   console.log("Received SIGINT. Stopping supergateway...");
-  gateway.kill("SIGINT");
+  shuttingDown = true;
+  clearTimeout(gatewayRestartTimer);
+  clearTimeout(gatewayStableTimer);
+  gateway?.kill("SIGINT");
   process.exit(0);
 });
 
