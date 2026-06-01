@@ -1,4 +1,10 @@
-from api_connection import post, httpx, get_headers, BASE_URL
+from api_connection import (
+    post,
+    httpx,
+    get_headers,
+    BASE_URL,
+    response_text_or_raise,
+)
 from models import (
     ObjectStoreBinaryFile,
     GetObjectStorePropertiesRequest,
@@ -6,10 +12,6 @@ from models import (
     GetObjectStoreURLRequest,
     ListObjectStoreRequest,
     DeleteObjectStoreRequest,
-    GetObjectStorePropertiesResponse,
-    GetObjectStoreResponse,
-    ListObjectStoreResponse,
-    RestResponse
 )
 
 def register_object_store_tools(mcp):
@@ -20,7 +22,7 @@ def register_object_store_tools(mcp):
         }
     )
     async def upload_object(
-            model: ObjectStoreBinaryFile) -> RestResponse:
+            model: ObjectStoreBinaryFile) -> str:
         """Upload files to the Object Store."""
         # This endpoint is unique because post request requires `data` 
         # and `files` arguments.
@@ -35,8 +37,7 @@ def register_object_store_tools(mcp):
                 files={'objectData': model.objectData},
                 timeout=30.0
             )
-            response.raise_for_status()
-            return response.json()
+            return response_text_or_raise(response)
 
     # Read file metadata
     @mcp.tool(
@@ -46,7 +47,7 @@ def register_object_store_tools(mcp):
     )
     async def read_object_properties(
             model: GetObjectStorePropertiesRequest
-        ) -> GetObjectStorePropertiesResponse:
+        ) -> str:
         """Get Object Store properties of a specific organization and 
         key. 
 
@@ -61,7 +62,7 @@ def register_object_store_tools(mcp):
         }
     )
     async def read_object_store_file_job_id(
-            model: GetObjectStoreJobIdRequest) -> GetObjectStoreResponse:
+            model: GetObjectStoreJobIdRequest) -> str:
         """Create a job to download files from the Object Store and 
         then read the job Id.
         """
@@ -75,7 +76,7 @@ def register_object_store_tools(mcp):
         }
     )
     async def read_object_store_file_download_url(
-            model: GetObjectStoreURLRequest) -> GetObjectStoreResponse:
+            model: GetObjectStoreURLRequest) -> str:
         """Get the URL for downloading files from the Object Store."""
         return await post('/object/get', model)
 
@@ -84,7 +85,7 @@ def register_object_store_tools(mcp):
         annotations={'title': 'List Object Store files', 'readOnlyHint': True}
     )
     async def list_object_store_files(
-            model: ListObjectStoreRequest) -> ListObjectStoreResponse:
+            model: ListObjectStoreRequest) -> str:
         """List the Object Store files under a specific directory in 
         an organization.
         """
@@ -98,7 +99,7 @@ def register_object_store_tools(mcp):
         }
     )
     async def delete_object(
-            model: DeleteObjectStoreRequest) -> RestResponse:
+            model: DeleteObjectStoreRequest) -> str:
         """Delete the Object Store file of a specific organization and 
         key.
         """

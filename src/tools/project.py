@@ -4,8 +4,6 @@ from models import (
     ReadProjectRequest, 
     UpdateProjectRequest,
     DeleteProjectRequest,
-    ProjectListResponse,
-    RestResponse
 )
 
 def register_project_tools(mcp):
@@ -17,7 +15,7 @@ def register_project_tools(mcp):
             'idempotentHint': False
         }
     )
-    async def create_project(model: CreateProjectRequest) -> ProjectListResponse:
+    async def create_project(model: CreateProjectRequest) -> str:
         """Create a new project in your default organization."""
         return await post('/projects/create', model)
 
@@ -35,12 +33,12 @@ def register_project_tools(mcp):
 
     # Update
     @mcp.tool(annotations={'title': 'Update project', 'idempotentHint': True})
-    async def update_project(model: UpdateProjectRequest) -> RestResponse:
+    async def update_project(model: UpdateProjectRequest) -> str:
         """Update a project's name or description."""
         return await post('/projects/update', model)
         
     # Delete
     @mcp.tool(annotations={'title': 'Delete project', 'idempotentHint': True})
-    async def delete_project(model: DeleteProjectRequest) -> RestResponse:
+    async def delete_project(model: DeleteProjectRequest) -> str:
         """Delete a project."""
         return await post('/projects/delete', model)

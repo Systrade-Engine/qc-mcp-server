@@ -6,14 +6,17 @@ from pydantic import ValidationError, TypeAdapter
 from datetime import datetime
 
 async def validate_response(
-        mcp, tool_name, structured_response, output_class):
-    # Check if the response schema is valid JSON.
-    jsonschema.validate(
-        instance=structured_response, 
-        schema=mcp._tool_manager.get_tool(tool_name).fn_metadata.output_schema
-    )
+        mcp, tool_name, response_text, output_class):
+    # Check if the tool output matches the MCP text-content contract.
+    output_schema = mcp._tool_manager.get_tool(tool_name).fn_metadata.output_schema
+    if output_schema:
+        jsonschema.validate(instance=response_text, schema=output_schema)
 
-    # Create and return the output model.
+    if output_class is None or output_class is str:
+        return response_text
+
+    # Create and return the output model from the raw text payload.
+    structured_response = loads(response_text)
     if isinstance(output_class, UnionType):
         structured_response = structured_response['result']
     return TypeAdapter(output_class).validate_python(structured_response)
@@ -26,15 +29,16 @@ async def validate_models(
     unstructured_response, structured_response = await mcp.call_tool(
         tool_name, {'model': input_args}
     )
+    response_text = unstructured_response[0].text
     # Check if the response has the success flag.
     assert loads(
-        unstructured_response[0].text
+        response_text
     ).get('success', True) == success_expected, structured_response
     if not success_expected:
-        return structured_response
+        return response_text
     # Check if the response respects the output_class.
     output_model = await validate_response(
-        mcp, tool_name, structured_response, output_class
+        mcp, tool_name, response_text, output_class
     )
     # Return an instance of the output_class.
     return output_model

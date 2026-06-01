@@ -1,6 +1,11 @@
 from __init__ import __version__
 
-import requests
+from api_connection import httpx, response_text_or_raise
+
+DOCKER_HUB_TAGS_URL = (
+    "https://hub.docker.com/v2/namespaces/quantconnect/"
+    "repositories/mcp-server/tags"
+)
 
 def register_mcp_server_version_tools(mcp):
     # Read current version
@@ -21,10 +26,16 @@ def register_mcp_server_version_tools(mcp):
     )
     async def read_latest_mcp_server_version() -> str:
         """Returns the latest version of the QC MCP Server released."""
-        response = requests.get(
-            "https://hub.docker.com/v2/namespaces/quantconnect/repositories/mcp-server/tags", 
-            params={"page_size": 2}
-        )
-        response.raise_for_status()
-        # Get the name of the second result. The first one is 'latest'.
-        return response.json()['results'][1]['name']
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                DOCKER_HUB_TAGS_URL,
+                params={"page_size": 2},
+                timeout=30,
+            )
+            response_text = response_text_or_raise(response)
+
+        try:
+            # Get the name of the second result. The first one is 'latest'.
+            return response.json()['results'][1]['name']
+        except (ValueError, KeyError, IndexError, TypeError):
+            return response_text

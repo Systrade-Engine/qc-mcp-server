@@ -16,6 +16,7 @@ from tools.lean_versions import register_lean_version_tools
 from tools.ai import register_ai_tools
 from tools.mcp_server_version import register_mcp_server_version_tools
 from organization_workspace import OrganizationWorkspace
+from api_connection import validate_credentials
 
 transport = os.getenv('MCP_TRANSPORT', 'stdio')
 
@@ -46,6 +47,7 @@ for f in registration_functions:
     f(mcp)
 
 if __name__ == "__main__":
+    validate_credentials()
     # Load the organization workspace.
     OrganizationWorkspace.load()
     # Run the server.

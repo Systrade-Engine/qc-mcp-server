@@ -6,11 +6,6 @@ from models import (
     UpdateCollaboratorRequest,
     DeleteCollaboratorRequest,
     LockCollaboratorRequest,
-    CreateCollaboratorResponse,
-    ReadCollaboratorsResponse,
-    UpdateCollaboratorResponse,
-    DeleteCollaboratorResponse,
-    RestResponse
 )
 
 def register_project_collaboration_tools(mcp):
@@ -23,7 +18,7 @@ def register_project_collaboration_tools(mcp):
         }
     )
     async def create_project_collaborator(
-            model: CreateCollaboratorRequest) -> CreateCollaboratorResponse:
+            model: CreateCollaboratorRequest) -> str:
         """Add a collaborator to a project."""
         return await post('/projects/collaboration/create', model)
 
@@ -35,7 +30,7 @@ def register_project_collaboration_tools(mcp):
         }
     )
     async def read_project_collaborators(
-            model: ReadCollaboratorsRequest) -> ReadCollaboratorsResponse:
+            model: ReadCollaboratorsRequest) -> str:
         """List all collaborators on a project."""
         return await post('/projects/collaboration/read', model)
 
@@ -47,7 +42,7 @@ def register_project_collaboration_tools(mcp):
         }
     )
     async def update_project_collaborator(
-            model: UpdateCollaboratorRequest) -> UpdateCollaboratorResponse:
+            model: UpdateCollaboratorRequest) -> str:
         """Update collaborator information in a project."""
         return await post('/projects/collaboration/update', model)
 
@@ -59,7 +54,7 @@ def register_project_collaboration_tools(mcp):
         }
     )
     async def delete_project_collaborator(
-            model: DeleteCollaboratorRequest) -> DeleteCollaboratorResponse:
+            model: DeleteCollaboratorRequest) -> str:
         """Remove a collaborator from a project."""
         return await post('/projects/collaboration/delete', model)
 
@@ -71,7 +66,7 @@ def register_project_collaboration_tools(mcp):
         }
     )
     async def lock_project_with_collaborators(
-            model: LockCollaboratorRequest) -> RestResponse:
+            model: LockCollaboratorRequest) -> str:
         """Lock a project so you can edit it. 
 
         This is necessary when the project has collaborators or when an 

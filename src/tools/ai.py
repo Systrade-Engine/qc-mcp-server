@@ -4,15 +4,7 @@ from models import (
     CodeCompletionRequest,
     ErrorEnhanceRequest,
     PEP8ConvertRequest,
-    BasicFilesRequest,
     SearchRequest,
-
-    BacktestInitResponse,
-    CodeCompletionResponse,
-    ErrorEnhanceResponse,
-    PEP8ConvertResponse,
-    SyntaxCheckResponse,
-    SearchResponse
 )
 
 def register_ai_tools(mcp):
@@ -23,7 +15,7 @@ def register_ai_tools(mcp):
         }
     )
     async def check_initialization_errors(
-            model: BasicFilesRequest) -> BacktestInitResponse:
+            model: BasicFilesRequest) -> str:
         """Run a backtest for a few seconds to initialize the algorithm 
         and get inialization errors if any."""
         return await post('/ai/tools/backtest-init', model)
@@ -31,7 +23,7 @@ def register_ai_tools(mcp):
     # Complete code
     @mcp.tool(annotations={'title': 'Complete code', 'readOnlyHint': True})
     async def complete_code(
-            model: CodeCompletionRequest) -> CodeCompletionResponse:
+            model: CodeCompletionRequest) -> str:
         """Show the code completion for a specific text input."""
         return await post('/ai/tools/complete', model)
 
@@ -40,7 +32,7 @@ def register_ai_tools(mcp):
         annotations={'title': 'Enhance error message', 'readOnlyHint': True}
     )
     async def enhance_error_message(
-            model: ErrorEnhanceRequest) -> ErrorEnhanceResponse:
+            model: ErrorEnhanceRequest) -> str:
         """Show additional context and suggestions for error messages."""
         return await post('/ai/tools/error-enhance', model)
 
@@ -49,18 +41,18 @@ def register_ai_tools(mcp):
         annotations={'title': 'Update code to PEP8', 'readOnlyHint': True}
     )
     async def update_code_to_pep8(
-            model: PEP8ConvertRequest) -> PEP8ConvertResponse:
+            model: PEP8ConvertRequest) -> str:
         """Update Python code to follow PEP8 style."""
         return await post('/ai/tools/pep8-convert', model)
 
     # Check syntax
     @mcp.tool(annotations={'title': 'Check syntax', 'readOnlyHint': True})
-    async def check_syntax(model: BasicFilesRequest) -> SyntaxCheckResponse:
+    async def check_syntax(model: BasicFilesRequest) -> str:
         """Check the syntax of a code."""
         return await post('/ai/tools/syntax-check', model)
 
     # Search
     @mcp.tool(annotations={'title': 'Search QuantConnect', 'readOnlyHint': True})
-    async def search_quantconnect(model: SearchRequest) -> SearchResponse:
+    async def search_quantconnect(model: SearchRequest) -> str:
         """Search for content in QuantConnect."""
         return await post('/ai/tools/search', model)
