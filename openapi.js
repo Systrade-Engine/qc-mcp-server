@@ -49,7 +49,17 @@ function createOpenApiSpec(baseUrl) {
                         service: "systrade-qc-mcp-gateway",
                         mode: "shared-session-ready",
                         active_sessions: 1,
+                        max_sessions: 100,
+                        session_ttl_ms: 86400000,
                         default_session_id: DEFAULT_SESSION_ID,
+                        gateway_pid: 42,
+                        node_memory: {
+                          rss_mb: 72.4,
+                          heap_used_mb: 12.1,
+                          heap_total_mb: 18.6,
+                          external_mb: 2.4,
+                          array_buffers_mb: 0.2,
+                        },
                       },
                     },
                   },
@@ -104,6 +114,24 @@ function createOpenApiSpec(baseUrl) {
             },
             422: {
               $ref: "#/components/responses/ValidationError",
+            },
+            429: {
+              description: "Session limit was reached.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ErrorResponse",
+                  },
+                  examples: {
+                    sessionLimit: {
+                      value: {
+                        error: "session limit reached",
+                        max_sessions: 100,
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -336,11 +364,61 @@ function createOpenApiSpec(baseUrl) {
               minimum: 0,
               example: 1,
             },
+            max_sessions: {
+              type: "integer",
+              minimum: 1,
+              example: 100,
+            },
+            session_ttl_ms: {
+              type: "integer",
+              minimum: 1,
+              example: 86400000,
+            },
             default_session_id: {
               type: "string",
               description:
                 "Auto-bootstrapped shared session id available immediately after service start.",
               example: DEFAULT_SESSION_ID,
+            },
+            gateway_pid: {
+              type: "integer",
+              minimum: 1,
+              description: "Process id for the internal supergateway process.",
+              example: 42,
+            },
+            node_memory: {
+              type: "object",
+              description:
+                "Memory used by the Node.js gateway process. Render metrics remain the source of truth for total container memory.",
+              required: [
+                "rss_mb",
+                "heap_used_mb",
+                "heap_total_mb",
+                "external_mb",
+                "array_buffers_mb",
+              ],
+              properties: {
+                rss_mb: {
+                  type: "number",
+                  example: 72.4,
+                },
+                heap_used_mb: {
+                  type: "number",
+                  example: 12.1,
+                },
+                heap_total_mb: {
+                  type: "number",
+                  example: 18.6,
+                },
+                external_mb: {
+                  type: "number",
+                  example: 2.4,
+                },
+                array_buffers_mb: {
+                  type: "number",
+                  example: 0.2,
+                },
+              },
             },
           },
         },

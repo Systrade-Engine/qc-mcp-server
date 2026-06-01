@@ -8,6 +8,15 @@ const internalPort = Number(process.env.INTERNAL_GATEWAY_PORT || 9000);
 const token = process.env.MCP_INTERNAL_TOKEN;
 const defaultSessionId = process.env.DEFAULT_SESSION_ID || "systradeapp-shared";
 const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+const maxSessions = readPositiveIntegerEnv("MAX_SESSIONS", 100);
+const sessionTtlMs = readPositiveIntegerEnv(
+  "SESSION_TTL_MS",
+  24 * 60 * 60 * 1000
+);
+const sessionCleanupIntervalMs = readPositiveIntegerEnv(
+  "SESSION_CLEANUP_INTERVAL_MS",
+  5 * 60 * 1000
+);
 
 if (!token) {
   console.error("MCP_INTERNAL_TOKEN is required");
@@ -16,17 +25,91 @@ if (!token) {
 
 const sessions = new Map();
 
+function readPositiveIntegerEnv(name, defaultValue) {
+  const value = Number(process.env[name]);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return defaultValue;
+  }
+
+  return Math.floor(value);
+}
+
+function pruneStaleSessions(now = Date.now()) {
+  let pruned = 0;
+
+  for (const [sessionId, session] of sessions) {
+    if (session.bootstrap) {
+      continue;
+    }
+
+    if (now - session.lastUsedAt > sessionTtlMs) {
+      sessions.delete(sessionId);
+      pruned += 1;
+    }
+  }
+
+  if (pruned > 0) {
+    console.log(`Pruned ${pruned} stale MCP session(s)`);
+  }
+
+  return pruned;
+}
+
+function pruneOldestSession() {
+  let oldestSessionId = null;
+  let oldestLastUsedAt = Infinity;
+
+  for (const [sessionId, session] of sessions) {
+    if (session.bootstrap) {
+      continue;
+    }
+
+    if (session.lastUsedAt < oldestLastUsedAt) {
+      oldestSessionId = sessionId;
+      oldestLastUsedAt = session.lastUsedAt;
+    }
+  }
+
+  if (!oldestSessionId) {
+    return false;
+  }
+
+  sessions.delete(oldestSessionId);
+  console.warn(`Pruned oldest MCP session after reaching MAX_SESSIONS`);
+  return true;
+}
+
+function ensureSessionCapacity() {
+  pruneStaleSessions();
+
+  while (sessions.size >= maxSessions) {
+    if (!pruneOldestSession()) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function createSharedSession({ sessionId, userId, workflowRunId, bootstrap }) {
   const now = Date.now();
+  const existing = sessions.get(sessionId);
+
+  if (!existing && !ensureSessionCapacity()) {
+    return false;
+  }
 
   sessions.set(sessionId, {
     sessionId,
     userId,
     workflowRunId,
     bootstrap,
-    createdAt: now,
+    createdAt: existing?.createdAt || now,
     lastUsedAt: now,
   });
+
+  return true;
 }
 
 function bootstrapDefaultSession() {
@@ -53,9 +136,15 @@ function requireInternalAuth(req, res, next) {
 
 bootstrapDefaultSession();
 
+const cleanupTimer = setInterval(() => {
+  pruneStaleSessions();
+}, sessionCleanupIntervalMs);
+cleanupTimer.unref();
+
 console.log("Starting shared supergateway...");
 console.log(`Internal gateway port: ${internalPort}`);
 console.log(`Default shared session: ${defaultSessionId}`);
+console.log(`Session limit: ${maxSessions}; TTL: ${sessionTtlMs}ms`);
 
 const gateway = spawn(
   npxCommand,
@@ -87,6 +176,22 @@ function getBaseUrl(req) {
   return process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
 }
 
+function toMb(bytes) {
+  return Math.round((bytes / 1024 / 1024) * 10) / 10;
+}
+
+function getNodeMemoryUsage() {
+  const usage = process.memoryUsage();
+
+  return {
+    rss_mb: toMb(usage.rss),
+    heap_used_mb: toMb(usage.heapUsed),
+    heap_total_mb: toMb(usage.heapTotal),
+    external_mb: toMb(usage.external),
+    array_buffers_mb: toMb(usage.arrayBuffers),
+  };
+}
+
 app.get("/", (_req, res) => {
   res.redirect(302, "/docs");
 });
@@ -97,7 +202,11 @@ app.get("/health", (_req, res) => {
     service: "systrade-qc-mcp-gateway",
     mode: "shared-session-ready",
     active_sessions: sessions.size,
+    max_sessions: maxSessions,
+    session_ttl_ms: sessionTtlMs,
     default_session_id: defaultSessionId,
+    gateway_pid: gateway.pid,
+    node_memory: getNodeMemoryUsage(),
   });
 });
 
@@ -132,12 +241,19 @@ app.post(
       return res.status(422).json({ error: "workflow_run_id is required" });
     }
 
-    createSharedSession({
+    const created = createSharedSession({
       sessionId: session_id,
       userId: user_id,
       workflowRunId: workflow_run_id,
       bootstrap: false,
     });
+
+    if (!created) {
+      return res.status(429).json({
+        error: "session limit reached",
+        max_sessions: maxSessions,
+      });
+    }
 
     res.json({
       status: "created",
