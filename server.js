@@ -9,6 +9,10 @@ const token = process.env.MCP_INTERNAL_TOKEN;
 const defaultSessionId = process.env.DEFAULT_SESSION_ID || "systradeapp-shared";
 const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
 const maxSessions = readPositiveIntegerEnv("MAX_SESSIONS", 100);
+const mcpSessionTimeoutMs = readPositiveIntegerEnv(
+  "MCP_SESSION_TIMEOUT_MS",
+  60 * 60 * 1000
+);
 const sessionTtlMs = readPositiveIntegerEnv(
   "SESSION_TTL_MS",
   24 * 60 * 60 * 1000
@@ -141,10 +145,11 @@ const cleanupTimer = setInterval(() => {
 }, sessionCleanupIntervalMs);
 cleanupTimer.unref();
 
-console.log("Starting shared supergateway...");
+console.log("Starting stateful supergateway...");
 console.log(`Internal gateway port: ${internalPort}`);
 console.log(`Default shared session: ${defaultSessionId}`);
 console.log(`Session limit: ${maxSessions}; TTL: ${sessionTtlMs}ms`);
+console.log(`MCP transport session timeout: ${mcpSessionTimeoutMs}ms`);
 
 const gateway = spawn(
   npxCommand,
@@ -154,6 +159,9 @@ const gateway = spawn(
     "uv run src/main.py",
     "--outputTransport",
     "streamableHttp",
+    "--stateful",
+    "--sessionTimeout",
+    String(mcpSessionTimeoutMs),
     "--port",
     String(internalPort),
   ],
@@ -200,10 +208,11 @@ app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     service: "systrade-qc-mcp-gateway",
-    mode: "shared-session-ready",
+    mode: "stateful-streamable-http",
     active_sessions: sessions.size,
     max_sessions: maxSessions,
     session_ttl_ms: sessionTtlMs,
+    mcp_session_timeout_ms: mcpSessionTimeoutMs,
     default_session_id: defaultSessionId,
     gateway_pid: gateway.pid,
     node_memory: getNodeMemoryUsage(),
@@ -258,7 +267,7 @@ app.post(
     res.json({
       status: "created",
       session_id,
-      mode: "shared-mcp-process",
+      mode: "stateful-mcp-transport",
     });
   }
 );

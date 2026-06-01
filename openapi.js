@@ -47,10 +47,11 @@ function createOpenApiSpec(baseUrl) {
                       value: {
                         status: "ok",
                         service: "systrade-qc-mcp-gateway",
-                        mode: "shared-session-ready",
+                        mode: "stateful-streamable-http",
                         active_sessions: 1,
                         max_sessions: 100,
                         session_ttl_ms: 86400000,
+                        mcp_session_timeout_ms: 3600000,
                         default_session_id: DEFAULT_SESSION_ID,
                         gateway_pid: 42,
                         node_memory: {
@@ -357,7 +358,7 @@ function createOpenApiSpec(baseUrl) {
             },
             mode: {
               type: "string",
-              example: "shared-session-ready",
+              example: "stateful-streamable-http",
             },
             active_sessions: {
               type: "integer",
@@ -373,6 +374,13 @@ function createOpenApiSpec(baseUrl) {
               type: "integer",
               minimum: 1,
               example: 86400000,
+            },
+            mcp_session_timeout_ms: {
+              type: "integer",
+              minimum: 1,
+              description:
+                "Inactivity timeout for stateful Streamable HTTP MCP transport sessions.",
+              example: 3600000,
             },
             default_session_id: {
               type: "string",
@@ -454,7 +462,7 @@ function createOpenApiSpec(baseUrl) {
             },
             mode: {
               type: "string",
-              example: "shared-mcp-process",
+              example: "stateful-mcp-transport",
             },
           },
         },
